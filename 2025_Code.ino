@@ -23,27 +23,36 @@ const int screwBotSwitch = 25;    // A6:
 // Imports
 #include <Stepper.h>
 const int stepsPerRevolution = 2038;
-Stepper myStepper = Stepper(stepsPerRevolution, 4, 5, 6, 7);
+Stepper myStepper(stepsPerRevolution, leadScrewMot1, leadScrewMot2, leadScrewMot3, leadScrewMot4);
 
 // Posssible States
 enum RobotState{
-  INITAL_SETUP
-  HOMING
-  HIT_WALL
-  BACKWARDS
-  SEARCH_TARGET2
-  SKIP_TARGET2
-  FIND_TARGET1
-  JUMP_TO_TARGET1
-  WAIT_TARGET1
-  LOWER_PLUNGER
-  FIND_TARGET2
-  JUMP_TO_TARGET2
-  STOPPED
-}
+  START,            // Setup phase, raises screw to correct height, turns on LEDs, starts motors
+  FIND_WALL,        // Moves robot forward until the wall button is triggered
+  WALL_CONTACT,     // Stops motors, turns off green LED, turn on red LED and buzzer, stays stationary for 8 seconds
+  BACKWARDS,        //
+  SKIP_TARGET2,
+  FIND_TARGET1,
+  JUMP_TO_TARGET1,
+  WAIT_TARGET1,
+  LOWER_PLUNGER,
+  FIND_TARGET2,
+  JUMP_TO_TARGET2,
+  FIND_TARGET,       // Moves in reverse, uses function to detect targets, checks if target is the current target, if so stops motors, otherwise keep moving and searching#
+  PITSTOP,           // Waits on the start target and adjusts screw height before moving off
+  STOPPED,           // Stops completely on second target
+};
 
-RobotState currentState = INITIAL_SETUP
+RobotState currentState = START;
 
+
+int startTarget = 1;
+int secondTarget = 0;
+// curTarget is the target number the robot should be searching for
+int curTarget = startTarget;
+
+// targetsFound is the number of targets the robot has found
+int targetsFound = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -64,6 +73,7 @@ void setup() {
   digitalWrite(S0_PIN, HIGH);
   digitalWrite(S1_PIN, LOW);
 
+  myStepper.setSpeed(5);
 
 
 }
@@ -71,27 +81,196 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  Serial.print("Case: ")
-  Serial.print(currentState)
+  String color1 = detectColor1();
+  String color2 = detectColor2();
+
+  Serial.print("Case: ");
+  Serial.print(currentState);
 
   switch (currentState){
-    case HOMING:
+    case START:
+      // Start stepper motor
+
+
+      // For homing we have to move the screw up to the top switch
       raiseScrew();
-      /*
-      if(digitalRead(screwTopSwitch) == LOW){
-        stopScrewMotor();
-        currentState = HIT_WALL
-        Serial.println("Screw Raised.");
-      }
-      */
+
+      // Turn on green LED
+      digitalWrite(onLight, HIGH);
+
       break;
       
+    case FIND_WALL:
+      moveForwards();
+      if (digitalRead(wallBut) == LOW){
+        stopMotor();
+        currentState = WALL_CONTACT;
+
+      }
+      break; 
+
+      case WALL_CONTACT:
+        // Turn off green LED
+        digitalWrite(onLight, LOW);
+
+        // Turn on red LED
+        digitalWrite(wallLight, HIGH);
+        
+        delay(8000);
+        currentState = BACKWARDS;
+        break;
+
+      case BACKWARDS:
+        
+      break;
+
+      case FIND_TARGET:
+
+      // Stop LED and buzzer
+
+      // Move in reverse for x seconds, then stop motor, for slower speed
+
+      // Use the current target to create a target number
+       int targetNum = curTarget;
+
+      // Detect if a target is passed over
+      if (color1 == "black" || color2 == "black"){
+        // Determine if this is the correct target based on curTarget and targets found
+        Serial.print("Target Detected.");
+        if(curTarget == targetsFound){
+          // If so, stop, nudge
+          stopMotor();
+
+          // Reset targetsFound
+          targetsFound = 0;
+
+          // Update the new curTarget
+          curTarget = secondTarget;
+        }
+
+        else{
+          targetsFound++;
+        }
+      }
+      break;
+
+      case PITSTOP:
+        // Move screw down 15mm (needs testing to get number)
+        
+        break; 
+    
   }
+
 }
 
 void raiseScrew() {
-  myStepper.setSpeed(5);
 	myStepper.step(stepsPerRevolution);
 }
 
-void 
+void moveForwards(){
+  digitalWrite(DMDir, HIGH);
+  digitalWrite(DMStep, LOW);
+}
+
+void stopMotor(){
+  digitalWrite(DMStep, HIGH);
+
+}
+
+
+int process_red_value1() {
+  digitalWrite(S2_PIN, LOW);
+  digitalWrite(S3_PIN, LOW);
+  int pulse_length = pulseIn(OUT_PIN1, LOW);
+  return pulse_length;
+}
+ 
+int process_green_value1() {
+  digitalWrite(S2_PIN, HIGH);
+  digitalWrite(S3_PIN, HIGH);
+  int pulse_length = pulseIn(OUT_PIN1, LOW);
+  return pulse_length;
+}
+ 
+int process_blue_value1() {
+  digitalWrite(S2_PIN, LOW);
+  digitalWrite(S3_PIN, HIGH);
+  int pulse_length = pulseIn(OUT_PIN1, LOW);
+  return pulse_length;
+}
+ 
+int process_red_value2() {
+  digitalWrite(S2_PIN, LOW);
+  digitalWrite(S3_PIN, LOW);
+  int pulse_length = pulseIn(OUT_PIN2, LOW);
+  return pulse_length;
+}
+ 
+int process_green_value2() {
+  digitalWrite(S2_PIN, HIGH);
+  digitalWrite(S3_PIN, HIGH);
+  int pulse_length = pulseIn(OUT_PIN2, LOW);
+  return pulse_length;
+}
+ 
+int process_blue_value2() {
+  digitalWrite(S2_PIN, LOW);
+  digitalWrite(S3_PIN, HIGH);
+  int pulse_length = pulseIn(OUT_PIN2, LOW);
+  return pulse_length;
+}
+String detectColor1() {
+  int r1 = process_red_value1();
+  int g1 = process_green_value1();
+  int b1 = process_blue_value1();
+  int colorVal = 0;
+  String color = findColor(colorVal);
+  return color;
+}
+ 
+String detectColor2() {
+  int r2 = process_red_value2();
+  int g2 = process_green_value2();
+  int b2 = process_blue_value2();
+  int colorVal = 0;
+  colorVal = setColor(r2, g2, b2);
+  String color = findColor(colorVal);
+  return color;
+}
+ 
+int setColor(int r, int g, int b){
+  int color = 0;
+  if(b<50){
+    color += 1;
+  }
+  if(g<50){
+    color += 2;
+  }  
+  if(r<50){
+    color += 4;
+  }
+  if (r>60 && g>60 && b>60){
+    color = 8;
+  }
+  if (r<25 && g<25 && b<25){
+    color = 9;
+  }
+  return color;
+}
+
+String findColor(int c){
+  if(c == 1){
+    return "blue";
+  } else if(c == 2){
+    return "green";
+  } else if(c == 4){
+    return "red";
+  } else if(c == 7 || c == 5){
+    return "board";
+  } else if(c == 9){
+    return "white";
+  } else if(c == 8){
+    return "black";
+  }
+  return "unknown";
+}
