@@ -16,8 +16,8 @@ const int outputEnable = 20;      // A1:
 const int S2_PIN = 21;            // A2:
 const int S3_PIN = 22;            // A3:
 const int OUT_PIN2 = 23;          // A4:
-const int OUT_PIN1 = 24;          // A5: Prevents forklift from over-traveling downward
-const int screwBotSwitch = 25;    // A6: 
+const int OUT_PIN1 = 24;          // A5: 
+const int screwBotSwitch = 25;    // A6: Prevents forklift from over-traveling downward
 // A7: Spare digital pin if needed
 
 // Imports
@@ -45,9 +45,10 @@ enum RobotState{
 
 RobotState currentState = START;
 
-
+// These values represent the first and second targets. In essence the value is the number of targets the robot should skip while searching for targets
 int startTarget = 1;
 int secondTarget = 0;
+
 // curTarget is the target number the robot should be searching for
 int curTarget = startTarget;
 
@@ -93,6 +94,7 @@ void loop() {
 
 
       // For homing we have to move the screw up to the top switch
+      // Should probably hardwire in screw raising duration instead of relying on switch.
       raiseScrew();
 
       // Turn on green LED
@@ -105,7 +107,6 @@ void loop() {
       if (digitalRead(wallBut) == LOW){
         stopMotor();
         currentState = WALL_CONTACT;
-
       }
       break; 
 
@@ -117,19 +118,26 @@ void loop() {
         digitalWrite(wallLight, HIGH);
         
         delay(8000);
-        currentState = BACKWARDS;
+        currentState = FIND_TARGET;
+
+        // Turn off red LED
+        digitalWrite(wallLight, LOW);
         break;
 
+/*
       case BACKWARDS:
         
       break;
-
+*/
       case FIND_TARGET:
+
+      RobotState nextState;
+
 
       // Stop LED and buzzer
 
       // Move in reverse for x seconds, then stop motor, for slower speed
-
+      moveBackwardsIncrements(100,50);
       // Use the current target to create a target number
        int targetNum = curTarget;
 
@@ -138,14 +146,24 @@ void loop() {
         // Determine if this is the correct target based on curTarget and targets found
         Serial.print("Target Detected.");
         if(curTarget == targetsFound){
+          // Use the curTarget to determine the next state to use
+          if (curTarget == startTarget){
+            nextState = WALL_CONTACT;
+          }
+          else{
+            nextState = STOPPED;
+          }
+
           // If so, stop, nudge
           stopMotor();
+          moveBackwardsIncrements(50,0);
 
           // Reset targetsFound
           targetsFound = 0;
 
           // Update the new curTarget
           curTarget = secondTarget;
+          currentState = nextState;
         }
 
         else{
@@ -171,6 +189,26 @@ void moveForwards(){
   digitalWrite(DMDir, HIGH);
   digitalWrite(DMStep, LOW);
 }
+
+void moveForwardsIncrements(int movementTime, int delayTime){
+  moveForwards();
+  delay(movementTime);
+  stopMotor();
+  delay(delayTime);
+}
+
+void moveBackwards(){
+  digitalWrite(DMDir, LOW);
+  digitalWrite(DMStep, LOW);
+}
+
+void moveBackwardsIncrements(int movementTime, int delayTime){
+  moveBackwards();
+  delay(movementTime);
+  stopMotor();
+  delay(delayTime);
+}
+
 
 void stopMotor(){
   digitalWrite(DMStep, HIGH);
