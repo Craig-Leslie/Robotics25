@@ -177,7 +177,7 @@ void stopMotor(){
 
 }
 
-
+// Code below is colour detection taken from last year
 int process_red_value1() {
   digitalWrite(S2_PIN, LOW);
   digitalWrite(S3_PIN, LOW);
