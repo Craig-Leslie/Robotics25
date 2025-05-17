@@ -21,9 +21,9 @@ const int screwBotSwitch = A6;    // A6: Prevents forklift from over-traveling d
 // A7: Spare digital pin if needed
 
 // Imports
-//include <Stepper.h>
+include <Stepper.h>
 const int stepsPerRevolution = 1600;
-//Stepper myStepper(stepsPerRevolution, leadScrewMot1, leadScrewMot2, leadScrewMot3, leadScrewMot4);
+Stepper myStepper(stepsPerRevolution, leadScrewMot1, leadScrewMot2, leadScrewMot3, leadScrewMot4);
 
 // Posssible States
 enum RobotState{
@@ -104,7 +104,7 @@ void loop() {
 
       // For homing we have to move the screw up to the top switch
       // Should probably hardwire in screw raising duration instead of relying on switch.
-      //raiseScrew();
+      raiseScrew();
 
       // Turn on green LED
       digitalWrite(onLight, HIGH);
@@ -180,7 +180,7 @@ void loop() {
 
       case PITSTOP:
         // Move screw down 15mm (needs testing to get number)
-        
+        lowerScrew();
         break; 
 
       case COLOUR_TEST:
@@ -196,7 +196,12 @@ void loop() {
 }
 
 void raiseScrew() {
-	//myStepper.step(stepsPerRevolution);
+	myStepper.step(stepsPerRevolution);
+  return;
+}
+
+void lowerScrew() {
+	myStepper.step(-stepsPerRevolution);
   return;
 }
 
