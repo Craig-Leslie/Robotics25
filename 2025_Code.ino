@@ -10,20 +10,20 @@ const int screwTopSwitch = 9;     // D9: For leadscrew homing calibration
 const int wallBut = 10;           // D10: Flat surface should hit square-on to prevent veering
 const int onLight = 11;           // D11: Turns on when robot powers up and starts moving		
 const int wallLight = 12;         // D12: Activates when robot hits the wall, deactivates when it leaves
-const int S0_PIN = 16;            // D13:
-const int S1_PIN = 19;            // A0:
-const int outputEnable = 20;      // A1:
-const int S2_PIN = 21;            // A2:
-const int S3_PIN = 22;            // A3:
-const int OUT_PIN2 = 23;          // A4:
-const int OUT_PIN1 = 24;          // A5: 
-const int screwBotSwitch = 25;    // A6: Prevents forklift from over-traveling downward
+const int S0_PIN = 13;            // D13:
+const int S1_PIN = A0;            // A0:
+const int outputEnable = A1;      // A1:
+const int S2_PIN = A2;            // A2:
+const int S3_PIN = A3;            // A3:
+const int OUT_PIN2 = A4;          // A4:
+const int OUT_PIN1 = A5;          // A5: 
+const int screwBotSwitch = A6;    // A6: Prevents forklift from over-traveling downward
 // A7: Spare digital pin if needed
 
 // Imports
-#include <Stepper.h>
-const int stepsPerRevolution = 2038;
-Stepper myStepper(stepsPerRevolution, leadScrewMot1, leadScrewMot2, leadScrewMot3, leadScrewMot4);
+//include <Stepper.h>
+const int stepsPerRevolution = 1600;
+//Stepper myStepper(stepsPerRevolution, leadScrewMot1, leadScrewMot2, leadScrewMot3, leadScrewMot4);
 
 // Posssible States
 enum RobotState{
@@ -41,9 +41,10 @@ enum RobotState{
   FIND_TARGET,       // Moves in reverse, uses function to detect targets, checks if target is the current target, if so stops motors, otherwise keep moving and searching#
   PITSTOP,           // Waits on the start target and adjusts screw height before moving off
   STOPPED,           // Stops completely on second target
+  COLOUR_TEST,       // Testing state to test colour recognition
 };
 
-RobotState currentState = START;
+RobotState currentState = FIND_WALL;
 
 // These values represent the first and second targets. In essence the value is the number of targets the robot should skip while searching for targets
 int startTarget = 1;
@@ -56,34 +57,42 @@ int curTarget = startTarget;
 int targetsFound = 0;
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(9600);
   Serial.println("Setup Starting...");
 
-  // set the S0, S1, S2, S3 Pins as Output
+  // Set LED and motor pins as OUTPUT
+  pinMode(onLight, OUTPUT);
+  pinMode(wallLight, OUTPUT);
+  pinMode(DMDir, OUTPUT);
+  pinMode(DMStep, OUTPUT);
+
+  // Set color sensor control pins
   pinMode(S0_PIN, OUTPUT);
   pinMode(S1_PIN, OUTPUT);
   pinMode(S2_PIN, OUTPUT);
   pinMode(S3_PIN, OUTPUT);
 
-  // set OUT_PINs as Input
+  // Set color sensor read pins
   pinMode(OUT_PIN1, INPUT);
   pinMode(OUT_PIN2, INPUT);
 
-  // set pulse width scaling to 20%
+  // Turn on status LED
+  digitalWrite(onLight, HIGH);
+
+  // Set wall button pins
+  pinMode(wallBut, INPUT_PULLUP);
+  digitalWrite(wallBut, HIGH);
+
+  // Set pulse width scaling
   digitalWrite(S0_PIN, HIGH);
   digitalWrite(S1_PIN, LOW);
-
-  myStepper.setSpeed(5);
-
-
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 
-  String color1 = detectColor1();
-  String color2 = detectColor2();
+  String colour1 = detectcolour1();
+  String colour2 = detectcolour2();
 
   Serial.print("Case: ");
   Serial.print(currentState);
@@ -95,34 +104,34 @@ void loop() {
 
       // For homing we have to move the screw up to the top switch
       // Should probably hardwire in screw raising duration instead of relying on switch.
-      raiseScrew();
+      //raiseScrew();
 
       // Turn on green LED
       digitalWrite(onLight, HIGH);
-
+      currentState = FIND_WALL;
       break;
       
     case FIND_WALL:
       moveForwards();
-      if (digitalRead(wallBut) == LOW){
+      if (digitalRead(wallBut) == HIGH){
         stopMotor();
         currentState = WALL_CONTACT;
       }
       break; 
 
-      case WALL_CONTACT:
-        // Turn off green LED
-        digitalWrite(onLight, LOW);
+    case WALL_CONTACT:
+      // Turn off green LED
+      digitalWrite(onLight, LOW);
 
-        // Turn on red LED
-        digitalWrite(wallLight, HIGH);
-        
-        delay(8000);
-        currentState = FIND_TARGET;
+      // Turn on red LED
+      digitalWrite(wallLight, HIGH);
+      
+      delay(8000);
+      currentState = FIND_TARGET;
 
-        // Turn off red LED
-        digitalWrite(wallLight, LOW);
-        break;
+      // Turn off red LED
+      digitalWrite(wallLight, LOW);
+      break;
 
 /*
       case BACKWARDS:
@@ -133,16 +142,13 @@ void loop() {
 
       RobotState nextState;
 
-
-      // Stop LED and buzzer
-
       // Move in reverse for x seconds, then stop motor, for slower speed
       moveBackwardsIncrements(100,50);
       // Use the current target to create a target number
        int targetNum = curTarget;
 
       // Detect if a target is passed over
-      if (color1 == "black" || color2 == "black"){
+      if (colour1 == "black" || colour2 == "black"){
         // Determine if this is the correct target based on curTarget and targets found
         Serial.print("Target Detected.");
         if(curTarget == targetsFound){
@@ -176,18 +182,32 @@ void loop() {
         // Move screw down 15mm (needs testing to get number)
         
         break; 
+
+      case COLOUR_TEST:
+        Serial.print("Colour 1: ");
+        Serial.print(colour1);
+
+        Serial.print("Colour 2: ");
+        Serial.print(colour2);
+        break;
     
   }
 
 }
 
 void raiseScrew() {
-	myStepper.step(stepsPerRevolution);
+	//myStepper.step(stepsPerRevolution);
+  return;
 }
 
 void moveForwards(){
-  digitalWrite(DMDir, HIGH);
-  digitalWrite(DMStep, LOW);
+  for (int i = 0; i < stepsPerRevolution; i++) {
+    digitalWrite(DMStep, HIGH);
+    delayMicroseconds(2000);
+    digitalWrite(DMStep, LOW);
+    delayMicroseconds(2000);
+  }
+
 }
 
 void moveForwardsIncrements(int movementTime, int delayTime){
@@ -195,11 +215,16 @@ void moveForwardsIncrements(int movementTime, int delayTime){
   delay(movementTime);
   stopMotor();
   delay(delayTime);
+  return;
 }
 
 void moveBackwards(){
-  digitalWrite(DMDir, LOW);
-  digitalWrite(DMStep, LOW);
+  for (int i = 0; i < stepsPerRevolution; i++) {
+    digitalWrite(DMStep, LOW);
+    delayMicroseconds(2000);
+    digitalWrite(DMStep, LOW);
+    delayMicroseconds(2000);
+  }
 }
 
 void moveBackwardsIncrements(int movementTime, int delayTime){
@@ -207,12 +232,13 @@ void moveBackwardsIncrements(int movementTime, int delayTime){
   delay(movementTime);
   stopMotor();
   delay(delayTime);
+  return;
 }
 
 
 void stopMotor(){
   digitalWrite(DMStep, HIGH);
-
+  return;
 }
 
 // Code below is colour detection taken from last year
@@ -257,46 +283,46 @@ int process_blue_value2() {
   int pulse_length = pulseIn(OUT_PIN2, LOW);
   return pulse_length;
 }
-String detectColor1() {
+String detectcolour1() {
   int r1 = process_red_value1();
   int g1 = process_green_value1();
   int b1 = process_blue_value1();
-  int colorVal = 0;
-  String color = findColor(colorVal);
-  return color;
+  int colourVal = 0;
+  String colour = findcolour(colourVal);
+  return colour;
 }
  
-String detectColor2() {
+String detectcolour2() {
   int r2 = process_red_value2();
   int g2 = process_green_value2();
   int b2 = process_blue_value2();
-  int colorVal = 0;
-  colorVal = setColor(r2, g2, b2);
-  String color = findColor(colorVal);
-  return color;
+  int colourVal = 0;
+  colourVal = setcolour(r2, g2, b2);
+  String colour = findcolour(colourVal);
+  return colour;
 }
  
-int setColor(int r, int g, int b){
-  int color = 0;
+int setcolour(int r, int g, int b){
+  int colour = 0;
   if(b<50){
-    color += 1;
+    colour += 1;
   }
   if(g<50){
-    color += 2;
+    colour += 2;
   }  
   if(r<50){
-    color += 4;
+    colour += 4;
   }
   if (r>60 && g>60 && b>60){
-    color = 8;
+    colour = 8;
   }
   if (r<25 && g<25 && b<25){
-    color = 9;
+    colour = 9;
   }
-  return color;
+  return colour;
 }
 
-String findColor(int c){
+String findcolour(int c){
   if(c == 1){
     return "blue";
   } else if(c == 2){
